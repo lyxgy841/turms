@@ -20,6 +20,7 @@ package im.turms.turms.access.web.util;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import im.turms.turms.common.TurmsStatusCode;
 import im.turms.turms.exception.TurmsBusinessException;
+import im.turms.turms.pojo.bo.PageResult;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -105,6 +106,10 @@ public class ResponseFactory {
                 .body(new Response(turmsStatusCode, null));
     }
 
+    public static Mono<ResponseEntity> page(Mono<Long> total, Flux data) {
+        return okWhenTruthy(PageResult.getResult(total, data));
+    }
+
     public static ResponseEntity fail() {
         return entity(TurmsStatusCode.FAILED);
     }
@@ -120,7 +125,7 @@ public class ResponseFactory {
                     if (((Collection) list).size() != 0) {
                         return okWhenTruthy(list, passData, TurmsStatusCode.OK, TurmsStatusCode.FAILED);
                     } else {
-                        return entity(TurmsStatusCode.NOT_FOUND);
+                        return entity(TurmsStatusCode.NO_CONTENT);
                     }
                 })
                 .onErrorResume(TurmsBusinessException.class, e -> handleException((TurmsBusinessException) e));
@@ -133,7 +138,7 @@ public class ResponseFactory {
                     if (((Collection) list).size() != 0) {
                         return okWhenTruthy(list, true, TurmsStatusCode.OK, failed);
                     } else {
-                        return entity(TurmsStatusCode.NOT_FOUND);
+                        return entity(TurmsStatusCode.NO_CONTENT);
                     }
                 })
                 .onErrorResume(TurmsBusinessException.class, e -> handleException((TurmsBusinessException) e));
@@ -146,21 +151,21 @@ public class ResponseFactory {
     public static Mono<ResponseEntity> okWhenTruthy(Mono data, boolean passData) {
         return data
                 .map(item -> okWhenTruthy(item, passData, TurmsStatusCode.OK, TurmsStatusCode.FAILED))
-                .switchIfEmpty(code(TurmsStatusCode.NOT_FOUND))
+                .switchIfEmpty(code(TurmsStatusCode.NO_CONTENT))
                 .onErrorResume(TurmsBusinessException.class, e -> handleException((TurmsBusinessException) e));
     }
 
     public static Mono<ResponseEntity> okWhenTruthy(Mono data, boolean passData, TurmsStatusCode failed) {
         return data
                 .map(item -> okWhenTruthy(item, passData, TurmsStatusCode.OK, failed))
-                .switchIfEmpty(code(TurmsStatusCode.NOT_FOUND))
+                .switchIfEmpty(code(TurmsStatusCode.NO_CONTENT))
                 .onErrorResume(TurmsBusinessException.class, e -> handleException((TurmsBusinessException) e));
     }
 
     public static Mono<ResponseEntity> okWhenTruthy(Mono data, TurmsStatusCode failed) {
         return data
                 .map(item -> okWhenTruthy(item, true, TurmsStatusCode.OK, failed))
-                .switchIfEmpty(code(TurmsStatusCode.NOT_FOUND))
+                .switchIfEmpty(code(TurmsStatusCode.NO_CONTENT))
                 .onErrorResume(TurmsBusinessException.class, e -> handleException((TurmsBusinessException) e));
     }
 
@@ -186,12 +191,12 @@ public class ResponseFactory {
                 if (!map.isEmpty()) {
                     Object total = map.get("total");
                     if (total instanceof Long && total.equals(0L)) {
-                        return ResponseEntity.status(TurmsStatusCode.NOT_FOUND.getHttpStatusCode())
+                        return ResponseEntity.status(TurmsStatusCode.NO_CONTENT.getHttpStatusCode())
                                 .body(new Response(failed, null));
                     }
                     return ResponseEntity.ok(new Response(ok, returnData ? data : null));
                 } else {
-                    return ResponseEntity.status(TurmsStatusCode.NOT_FOUND.getHttpStatusCode())
+                    return ResponseEntity.status(TurmsStatusCode.NO_CONTENT.getHttpStatusCode())
                             .body(new Response(failed, null));
                 }
             } else if (data instanceof Collection) {
@@ -199,7 +204,7 @@ public class ResponseFactory {
                 if (!collection.isEmpty()) {
                     return ResponseEntity.ok(new Response(ok, returnData ? data : null));
                 } else {
-                    return ResponseEntity.status(TurmsStatusCode.NOT_FOUND.getHttpStatusCode())
+                    return ResponseEntity.status(TurmsStatusCode.NO_CONTENT.getHttpStatusCode())
                             .body(new Response(failed, null));
                 }
             } else {

@@ -115,7 +115,7 @@ public class GroupJoinRequestService {
                         return groupService.isGroupActive(groupId)
                                 .flatMap(isActive -> {
                                     if (isActive == null || !isActive) {
-                                        return Mono.error(TurmsBusinessException.get(TurmsStatusCode.UNAUTHORIZED));
+                                        return Mono.error(TurmsBusinessException.get(TurmsStatusCode.NOT_ACTIVE));
                                     }
                                     Date expirationDate = null;
                                     int hours = turmsClusterManager.getTurmsProperties().getGroup()
@@ -216,7 +216,7 @@ public class GroupJoinRequestService {
                                 .collect(Collectors.toSet())
                                 .map(groupJoinRequests -> {
                                     if (groupJoinRequests.isEmpty()) {
-                                        throw TurmsBusinessException.get(TurmsStatusCode.NOT_FOUND);
+                                        throw TurmsBusinessException.get(TurmsStatusCode.NO_CONTENT);
                                     }
                                     GroupJoinRequestsWithVersion.Builder builder = GroupJoinRequestsWithVersion.newBuilder();
                                     builder.setLastUpdatedDate(Int64Value.newBuilder().setValue(version.getTime()).build());

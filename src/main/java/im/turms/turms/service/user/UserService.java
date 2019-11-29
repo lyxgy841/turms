@@ -105,18 +105,26 @@ public class UserService {
 
     public Mono<Boolean> isAllowedToSendMessageToTarget(
             @NotNull ChatType chatType,
+            @NotNull Boolean isSystemMessage,
             @NotNull Long requesterId,
             @NotNull Long targetId) {
+        if (isSystemMessage) {
+            return Mono.just(true);
+        }
         switch (chatType) {
             case PRIVATE:
                 if (requesterId.equals(targetId)) {
-                    return Mono.just(turmsClusterManager.getTurmsProperties()
-                            .getMessage().isAllowSendingMessagesToOneself());
+                    if (turmsClusterManager.getTurmsProperties()
+                            .getMessage().isAllowSendingMessagesToOneself()) {
+                        return Mono.just(true);
+                    } else {
+                        return Mono.error(TurmsBusinessException.get(TurmsStatusCode.DISABLE_FUNCTION));
+                    }
                 }
                 return isActive(requesterId)
                         .flatMap(isActive -> {
                             if (isActive == null || !isActive) {
-                                return Mono.error(TurmsBusinessException.get(TurmsStatusCode.UNAUTHORIZED));
+                                return Mono.error(TurmsBusinessException.get(TurmsStatusCode.NOT_ACTIVE));
                             } else {
                                 if (turmsClusterManager.getTurmsProperties().getMessage().isAllowSendingMessagesToStranger()) {
                                     if (turmsClusterManager.getTurmsProperties().getMessage().isCheckIfTargetExists()) {
@@ -133,8 +141,6 @@ public class UserService {
                         });
             case GROUP:
                 return groupMemberService.isAllowedToSendMessage(targetId, requesterId);
-            case SYSTEM:
-                return Mono.just(requesterId.equals(ADMIN_REQUESTER_ID));
             case UNRECOGNIZED:
             default:
                 return Mono.just(false);
@@ -372,7 +378,7 @@ public class UserService {
         Query query = builder
                 .addBetweenIfNotNull(User.Fields.registrationDate, registrationDateStart, registrationDateEnd)
                 .addBetweenIfNotNull(User.Fields.deletionDate, deletionDateStart, deletionDateEnd)
-                .addIfNotNull(Criteria.where(User.Fields.active).is(active), active)
+                .addIsIfNotNull(User.Fields.active, active)
                 .paginateIfNotNull(page, size);
         return mongoTemplate.find(query, User.class);
     }
@@ -406,6 +412,31 @@ public class UserService {
 
     public Mono<Long> countUsers() {
         return mongoTemplate.count(new Query(), User.class);
+    }
+
+    public Mono<Long> countUsers(
+            @Nullable Set<Long> userIds,
+            @Nullable Date registrationDateStart,
+            @Nullable Date registrationDateEnd,
+            @Nullable Date deletionDateStart,
+            @Nullable Date deletionDateEnd,
+            @Nullable Boolean active) {
+        Query query = QueryBuilder
+                .newBuilder()
+                .addBetweenIfNotNull(
+                        User.Fields.registrationDate,
+                        registrationDateStart,
+                        registrationDateEnd)
+                .addBetweenIfNotNull(
+                        User.Fields.deletionDate,
+                        deletionDateStart,
+                        deletionDateEnd)
+                .addIsIfNotNull(User.Fields.active, active)
+                .buildQuery();
+        if (userIds != null) {
+            query.addCriteria(Criteria.where(ID).in(userIds));
+        }
+        return mongoTemplate.count(query, User.class);
     }
 
     public Mono<Long> countMaxOnlineUsers(@Nullable Date startDate, @Nullable Date endDate) {

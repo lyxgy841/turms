@@ -43,6 +43,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.reactive.socket.CloseStatus;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -76,7 +77,7 @@ public class UserController {
 
     @GetMapping
     @RequiredPermission(AdminPermission.USER_QUERY)
-    public Mono<ResponseEntity> getUsers(
+    public Mono<ResponseEntity> queryUsers(
             @RequestParam(required = false) Set<Long> userIds,
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) Date registrationDateStart,
@@ -99,7 +100,14 @@ public class UserController {
                     active,
                     page,
                     size);
-            return ResponseFactory.okWhenTruthy(users);
+            Mono<Long> count = userService.countUsers(
+                    userIds,
+                    registrationDateStart,
+                    registrationDateEnd,
+                    deletionDateStart,
+                    deletionDateEnd,
+                    active);
+            return ResponseFactory.page(count, users);
         }
     }
 
@@ -185,7 +193,8 @@ public class UserController {
                 counts.add(messageService.countUsersWhoSentMessage(
                         sentMessageStartDate,
                         sentMessageEndDate,
-                        null)
+                        null,
+                        false)
                         .map(total -> Pair.of(USERS_WHO_SENT_MESSAGES, total)));
             }
             if (loggedInStartDate != null || loggedInEndDate != null) {
@@ -224,7 +233,8 @@ public class UserController {
                         sentMessageEndDate,
                         divideBy,
                         messageService::countUsersWhoSentMessage,
-                        null));
+                        null,
+                        false));
             }
             if (loggedInStartDate != null && loggedInEndDate != null) {
                 counts.add(dateTimeUtil.checkAndQueryBetweenDate(
@@ -264,7 +274,7 @@ public class UserController {
      */
     @GetMapping("/online-statuses")
     @RequiredPermission(AdminPermission.USER_QUERY)
-    public Mono<ResponseEntity> getOnlineUsersStatus(
+    public Mono<ResponseEntity> queryOnlineUsersStatus(
             @RequestParam(required = false) Set<Long> userIds,
             @RequestParam(defaultValue = "20") Integer number) {
         if (userIds != null && !userIds.isEmpty()) {
@@ -298,8 +308,19 @@ public class UserController {
     @RequiredPermission(AdminPermission.USER_UPDATE)
     public Mono<ResponseEntity> updateUserOnlineStatus(
             @RequestParam Long userId,
+            @RequestParam(required = false) Set<DeviceType> deviceTypes,
             @RequestBody UpdateOnlineStatusDTO updateOnlineStatusDTO) {
-        Mono<Boolean> updated = onlineUserService.updateOnlineUserStatus(userId, updateOnlineStatusDTO.getOnlineStatus());
+        Mono<Boolean> updated;
+        UserStatus onlineStatus = updateOnlineStatusDTO.getOnlineStatus();
+        if (onlineStatus == UserStatus.OFFLINE) {
+            if (deviceTypes != null) {
+                updated = onlineUserService.setUserDevicesOffline(userId, deviceTypes, CloseStatus.NORMAL);
+            } else {
+                updated = onlineUserService.setUserOffline(userId, CloseStatus.NORMAL);
+            }
+        } else {
+            updated = onlineUserService.updateOnlineUserStatus(userId, onlineStatus);
+        }
         return ResponseFactory.okWhenTruthy(updated);
     }
 

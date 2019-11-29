@@ -124,7 +124,7 @@ public class GroupJoinQuestionService {
                             if (isActive != null && isActive) {
                                 return checkGroupQuestionAnswersAndCountScore(questionIdAndAnswerMap, groupId);
                             } else {
-                                return Mono.error(TurmsBusinessException.get(TurmsStatusCode.DISABLE_FUNCTION));
+                                return Mono.error(TurmsBusinessException.get(TurmsStatusCode.NOT_ACTIVE));
                             }
                         })
                         .flatMap(idsAndScore -> groupService.queryGroupMinimumScore(groupId)
@@ -241,7 +241,7 @@ public class GroupJoinQuestionService {
                                 .collect(Collectors.toSet())
                                 .map(groupJoinQuestions -> {
                                     if (groupJoinQuestions.isEmpty()) {
-                                        throw TurmsBusinessException.get(TurmsStatusCode.NOT_FOUND);
+                                        throw TurmsBusinessException.get(TurmsStatusCode.NO_CONTENT);
                                     }
                                     GroupJoinQuestionsWithVersion.Builder builder = GroupJoinQuestionsWithVersion.newBuilder();
                                     builder.setLastUpdatedDate(Int64Value.newBuilder().setValue(version.getTime()).build());

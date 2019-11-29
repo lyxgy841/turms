@@ -266,11 +266,9 @@ public class AdminService {
             int page,
             int size) {
         Query query = QueryBuilder.newBuilder()
-                .addIfNotNull(Criteria.where(Admin.Fields.roleId).is(roleId), roleId)
+                .addInIfNotNull(ID, accounts)
+                .addIsIfNotNull(Admin.Fields.roleId, roleId)
                 .paginateIfNotNull(page, size);
-        if (accounts != null && !accounts.isEmpty()) {
-            query.addCriteria(Criteria.where(ID).in(accounts));
-        }
         if (!withPassword) {
             query.fields().exclude(Admin.Fields.password);
         }
@@ -323,22 +321,30 @@ public class AdminService {
             @Nullable String password,
             @Nullable String name,
             @Nullable Long roleId) {
-        return adminRoleService.isAdminHigherThanAdmins(requester, targetAccounts)
-                .flatMap(triple -> {
-                    if (triple.getLeft()) {
-                        return adminRoleService.queryRankByRole(roleId)
-                                .flatMap(rank -> {
-                                    if (triple.getMiddle() > rank) {
-                                        return updateAdmins(targetAccounts, password, name, roleId);
-                                    } else {
-                                        return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED));
-                                    }
-                                });
-                    } else {
-                        return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED));
-                    }
-                })
-                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)));
+        if (targetAccounts.size() == 1 && targetAccounts.iterator().next().equals(requester)) {
+            if (roleId == null) {
+                return updateAdmins(targetAccounts, password, name, null);
+            } else {
+                return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+            }
+        } else {
+            return adminRoleService.isAdminHigherThanAdmins(requester, targetAccounts)
+                    .flatMap(triple -> {
+                        if (triple.getLeft()) {
+                            return adminRoleService.queryRankByRole(roleId)
+                                    .flatMap(rank -> {
+                                        if (triple.getMiddle() > rank) {
+                                            return updateAdmins(targetAccounts, password, name, roleId);
+                                        } else {
+                                            return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+                                        }
+                                    });
+                        } else {
+                            return Mono.error(new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+                        }
+                    })
+                    .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)));
+        }
     }
 
     public Mono<Boolean> updateAdmins(
@@ -359,11 +365,9 @@ public class AdminService {
 
     public Mono<Long> countAdmins(@Nullable Set<String> accounts, @Nullable Long roleId) {
         Query query = QueryBuilder.newBuilder()
-                .addIfNotNull(Criteria.where(Admin.Fields.roleId).is(roleId), roleId)
+                .addInIfNotNull(ID, accounts)
+                .addIsIfNotNull(Admin.Fields.roleId, roleId)
                 .buildQuery();
-        if (accounts != null && !accounts.isEmpty()) {
-            query.addCriteria(Criteria.where(ID).in(accounts));
-        }
         return mongoTemplate.count(query, Admin.class);
     }
 }
